@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>Akasya Durağı 3D - Taksi Macerası</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; font-family: 'Arial', sans-serif; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
+        
+        /* Arayüz Elemanları */
+        #ui {
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            color: yellow; text-shadow: 2px 2px #000; text-align: center;
+            pointer-events: none;
+        }
+        .stats { font-size: 24px; font-weight: bold; background: rgba(0,0,0,0.5); padding: 10px; border: 2px solid yellow; }
+        .controls { color: white; font-size: 14px; margin-top: 10px; }
+        #nuri-baba {
+            position: absolute; top: 20px; right: 20px;
+            width: 150px; border: 3px solid gold; border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="renderer"></canvas>
+    
+    <div id="ui">
+        <div class="stats">AKASYA DURAĞI: <span id="taxi-count">CAN: 100</span></div>
+        <div class="controls">Hareket: WASD veya Ok Tuşları | Dönüş: Sağ/Sol</div>
+        <div style="margin-top: 5px; color: #ffcc00;">"Ekmek Teknesi Bu, Şakaya Gelmez!"</div>
+    </div>
+</div>
+
+<script>
+/**
+ * AKASYA DURAĞI 3D ENGINE (Raycasting)
+ */
+const canvas = document.getElementById('renderer');
+const ctx = canvas.getContext('2d');
+
+// Ekran ayarları
+canvas.width = 640;
+canvas.height = 400;
+
+const map = [
+    [1,1,1,1,1,1,1,1,1,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,1,0,0,0,0,1,0,1],
+    [1,0,1,0,0,0,0,1,0,1],
+    [1,0,0,0,2,0,0,0,0,1], // 2 numara durak tabelası/kapısı
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,0,1,1,0,0,1,1,0,1],
+    [1,0,0,0,0,0,0,0,0,1],
+    [1,1,1,1,1,1,1,1,1,1],
+];
+
+const player = {
+    x: 2, y: 2, dir: 0, 
+    rotSpeed: 0.05, moveSpeed: 0.06
+};
+
+const keys = {};
+window.onkeydown = (e) => keys[e.key.toLowerCase()] = true;
+window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
+
+function update() {
+    if (keys['w'] || keys['arrowup']) {
+        let newX = player.x + Math.cos(player.dir) * player.moveSpeed;
+        let newY = player.y + Math.sin(player.dir) * player.moveSpeed;
+        if (map[Math.floor(newY)][Math.floor(newX)] === 0) {
+            player.x = newX; player.y = newY;
+        }
+    }
+    if (keys['s'] || keys['arrowdown']) {
+        let newX = player.x - Math.cos(player.dir) * player.moveSpeed;
+        let newY = player.y - Math.sin(player.dir) * player.moveSpeed;
+        if (map[Math.floor(newY)][Math.floor(newX)] === 0) {
+            player.x = newX; player.y = newY;
+        }
+    }
+    if (keys['a'] || keys['arrowleft']) player.dir -= player.rotSpeed;
+    if (keys['d'] || keys['arrowright']) player.dir += player.rotSpeed;
+}
+
+function draw() {
+    // Gökyüzü ve Yer
+    ctx.fillStyle = "#333"; ctx.fillRect(0, 0, canvas.width, canvas.height/2);
+    ctx.fillStyle = "#666"; ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2);
+
+    // Raycasting (Görüntü İşleme)
+    const numRays = canvas.width;
+    const fov = Math.PI / 3;
+
+    for (let i = 0; i < numRays; i++) {
+        let rayAngle = (player.dir - fov/2) + (i / numRays) * fov;
+        let distance = 0;
+        let hit = 0;
+
+        let eyeX = Math.cos(rayAngle);
+        let eyeY = Math.sin(rayAngle);
+
+        while (hit === 0 && distance < 15) {
+            distance += 0.05;
+            let testX = Math.floor(player.x + eyeX * distance);
+            let testY = Math.floor(player.y + eyeY * distance);
+
+            if (testX < 0 || testX >= map[0].length || testY < 0 || testY >= map.length) {
+                hit = 1; distance = 15;
+            } else if (map[testY][testX] > 0) {
+                hit = map[testY][testX];
+            }
+        }
+
+        // Balıkgözü etkisini düzeltme
+        let correctedDist = distance * Math.cos(rayAngle - player.dir);
+        let wallHeight = canvas.height / correctedDist;
+
+        // Duvar renkleri (Akasya Durağı Sarısı ve Bina Rengi)
+        let color = (hit === 2) ? "#FFD700" : "#8B4513"; 
+        let brightness = 1 - (distance / 15);
+        ctx.strokeStyle = color;
+        ctx.globalAlpha = brightness;
+        ctx.beginPath();
+        ctx.moveTo(i, (canvas.height/2) - (wallHeight/2));
+        ctx.lineTo(i, (canvas.height/2) + (wallHeight/2));
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+</body>
+</html>
